@@ -49,7 +49,7 @@
             border-radius: 10px;
         }
 
-        /* 3D面配置の定義 */
+        /* 3D面配置 */
         .f-front  { transform: rotateY(0deg) translateZ(100px); }
         .f-back   { transform: rotateY(180deg) translateZ(100px); }
         .f-right  { transform: rotateY(90deg) translateZ(100px); }
@@ -116,14 +116,13 @@
         let remainingMembers = [...originalMembers];
         let isRolling = false;
 
-        // 各面（0～5）に対応する回転角度
         const faceRotations = [
-            { x: 0, y: 0 },       // Front
-            { x: 0, y: 180 },     // Back
-            { x: 0, y: -90 },     // Right
-            { x: 0, y: 90 },      // Left
-            { x: -90, y: 0 },     // Top
-            { x: 90, y: 0 }       // Bottom
+            { x: 0, y: 0 },       // Front (face-0)
+            { x: 0, y: 180 },     // Back  (face-1)
+            { x: 0, y: -90 },     // Right (face-2)
+            { x: 0, y: 90 },      // Left  (face-3)
+            { x: -90, y: 0 },     // Top   (face-4)
+            { x: 90, y: 0 }       // Bottom(face-5)
         ];
 
         function updateStatus() {
@@ -138,53 +137,60 @@
             btn.disabled = true;
             document.getElementById('result-text').innerText = "抽選中...";
 
-            // 1. 面に名前を割り当てる（今の残りメンバーからランダムに）
+            // 1. 面の割り当てを決定する
+            // ★を混ぜたプールを作り、シャッフルする
             let pool = [...remainingMembers];
-            while (pool.length < 6) pool.push("★"); // 6面埋めるための補充
+            let starIndices = []; // ★が入っている面を記録
             
-            // 面に割り当てる配列（シャッフル）
-            const faceNames = pool.sort(() => Math.random() - 0.5).slice(0, 6);
+            let tempArray = [...remainingMembers];
+            // 足りない分を★で埋める
+            while (tempArray.length < 6) {
+                tempArray.push("★");
+            }
+            // シャッフル
+            const faceNames = tempArray.sort(() => Math.random() - 0.5);
+            
+            // 面に名前を表示し、★以外のインデックスをリスト化
+            let validIndices = [];
             faceNames.forEach((name, i) => {
                 document.getElementById(`face-${i}`).innerText = name;
+                if (name !== "★") {
+                    validIndices.push(i);
+                }
             });
 
-            // 2. どの面を「当たり」にするか決める
-            const winnerIndex = Math.floor(Math.random() * 6);
+            // 2. 「★」以外の面からランダムに当選インデックスを選ぶ
+            const winnerIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
             const winnerName = faceNames[winnerIndex];
 
-            // 3. その面が正面に来るように回転させる
+            // 3. 回転
             const cube = document.getElementById('cube');
             const rotation = faceRotations[winnerIndex];
             
-            // 何回転かさせてから目的の角度へ（360 * 3 = 1080度プラス）
+            // 演出として大幅に回転させる
             const finalX = rotation.x + (1080 * (Math.random() > 0.5 ? 1 : -1));
             const finalY = rotation.y + (1080 * (Math.random() > 0.5 ? 1 : -1));
             
             cube.style.transform = `rotateX(${finalX}deg) rotateY(${finalY}deg)`;
 
-            // 4. アニメーション終了後に結果を表示
+            // 4. 結果表示
             setTimeout(() => {
-                if (winnerName !== "★") {
-                    document.getElementById('result-text').innerText = `次は… 【${winnerName}】さん！`;
-                    remainingMembers = remainingMembers.filter(m => m !== winnerName);
-                } else {
-                    document.getElementById('result-text').innerText = "★ 好きな人を指名！";
-                }
+                document.getElementById('result-text').innerText = `次は… 【${winnerName}】さん！`;
+                remainingMembers = remainingMembers.filter(m => m !== winnerName);
                 
                 updateStatus();
                 isRolling = false;
                 btn.disabled = false;
 
                 if (remainingMembers.length === 0) {
-                    setTimeout(() => alert("全員終了しました！リセットします。"), 500);
-                    setTimeout(resetApp, 600);
+                    setTimeout(() => alert("全員終了しました！"), 500);
                 }
-            }, 2100); // transition(2s)より少し長めに
+            }, 2100);
         }
 
         function resetApp() {
             remainingMembers = [...originalMembers];
-            document.getElementById('result-text').innerText = "";
+            document.getElementById('result-text').innerText = "リセットしました";
             document.getElementById('cube').style.transform = "rotateX(0deg) rotateY(0deg)";
             updateStatus();
         }
