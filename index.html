@@ -20,7 +20,7 @@
         .scene {
             width: 200px;
             height: 200px;
-            perspective: 800px;
+            perspective: 1000px;
             margin-bottom: 40px;
         }
 
@@ -29,7 +29,8 @@
             height: 100%;
             position: relative;
             transform-style: preserve-3d;
-            transition: transform 2s cubic-bezier(0.15, 0.9, 0.3, 1);
+            /* 2秒かけて回転。最後は少し弾むような動き */
+            transition: transform 2s cubic-bezier(0.15, 0.9, 0.3, 1.1);
         }
 
         .face {
@@ -47,6 +48,7 @@
             box-sizing: border-box;
             box-shadow: inset 0 0 30px rgba(0,0,0,0.2);
             border-radius: 10px;
+            backface-visibility: visible;
         }
 
         /* 3D面配置 */
@@ -71,7 +73,7 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
             font-weight: bold;
         }
-        button:disabled { background: #555; cursor: not-allowed; opacity: 0.6; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .result-msg {
             margin-top: 20px;
@@ -87,12 +89,10 @@
 
     <h1 style="color: #ffd700; text-shadow: 2px 2px 4px #000; margin-bottom: 20px;">すべらない話</h1>
 
-    <div class="status">
-        <div id="remaining-count" class="remaining">読み込み中...</div>
-    </div>
+    <div id="remaining-count" class="remaining status">残り: 8名</div>
 
     <div class="scene">
-        <div class="cube" id="cube">
+        <div class="cube" id="cube" style="transform: rotateX(0deg) rotateY(0deg);">
             <div class="face f-front" id="face-0">?</div>
             <div class="face f-back" id="face-1">?</div>
             <div class="face f-right" id="face-2">?</div>
@@ -107,7 +107,7 @@
     <div class="controls" style="margin-top: 30px;">
         <button id="roll-btn" onclick="roll()">サイコロを振る</button>
         <div style="margin-top: 15px;">
-            <button onclick="resetApp()" style="font-size: 12px; padding: 5px 15px; background: #444;">リストをリセット</button>
+            <button onclick="resetApp()" style="font-size: 12px; padding: 5px 15px; background: #444;">リセット</button>
         </div>
     </div>
 
@@ -115,14 +115,18 @@
         const originalMembers = ["鹿内", "小椋", "中澤", "志民", "大石", "島尻", "益井", "甲平"];
         let remainingMembers = [...originalMembers];
         let isRolling = false;
+        
+        // 累積回転角度を保持
+        let currentTotalX = 0;
+        let currentTotalY = 0;
 
         const faceRotations = [
-            { x: 0, y: 0 },       // Front (face-0)
-            { x: 0, y: 180 },     // Back  (face-1)
-            { x: 0, y: -90 },     // Right (face-2)
-            { x: 0, y: 90 },      // Left  (face-3)
-            { x: -90, y: 0 },     // Top   (face-4)
-            { x: 90, y: 0 }       // Bottom(face-5)
+            { x: 0, y: 0 },       // Front
+            { x: 0, y: 180 },     // Back
+            { x: 0, y: -90 },     // Right
+            { x: 0, y: 90 },      // Left
+            { x: -90, y: 0 },     // Top
+            { x: 90, y: 0 }       // Bottom
         ];
 
         function updateStatus() {
@@ -137,41 +141,37 @@
             btn.disabled = true;
             document.getElementById('result-text').innerText = "抽選中...";
 
-            // 1. 面の割り当てを決定する
-            // ★を混ぜたプールを作り、シャッフルする
+            // 1. 面の割り当て
             let pool = [...remainingMembers];
-            let starIndices = []; // ★が入っている面を記録
-            
             let tempArray = [...remainingMembers];
-            // 足りない分を★で埋める
-            while (tempArray.length < 6) {
-                tempArray.push("★");
-            }
-            // シャッフル
-            const faceNames = tempArray.sort(() => Math.random() - 0.5);
+            while (tempArray.length < 6) tempArray.push("★");
             
-            // 面に名前を表示し、★以外のインデックスをリスト化
+            // ランダムに並び替えて面に配置
+            const faceNames = tempArray.sort(() => Math.random() - 0.5);
             let validIndices = [];
             faceNames.forEach((name, i) => {
                 document.getElementById(`face-${i}`).innerText = name;
-                if (name !== "★") {
-                    validIndices.push(i);
-                }
+                if (name !== "★") validIndices.push(i);
             });
 
-            // 2. 「★」以外の面からランダムに当選インデックスを選ぶ
+            // 2. 当選者を決める（★以外から）
             const winnerIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
             const winnerName = faceNames[winnerIndex];
 
-            // 3. 回転
+            // 3. 回転アニメーションの計算
             const cube = document.getElementById('cube');
-            const rotation = faceRotations[winnerIndex];
+            const targetRotation = faceRotations[winnerIndex];
+
+            // 累積角度に、最低3回転(1080度) + ターゲットまでの角度を上乗せ
+            // 毎回違う方向に回るようにランダム要素を追加
+            const rotateX = 1080 + targetRotation.x;
+            const rotateY = 1080 + targetRotation.y;
             
-            // 演出として大幅に回転させる
-            const finalX = rotation.x + (1080 * (Math.random() > 0.5 ? 1 : -1));
-            const finalY = rotation.y + (1080 * (Math.random() > 0.5 ? 1 : -1));
-            
-            cube.style.transform = `rotateX(${finalX}deg) rotateY(${finalY}deg)`;
+            currentTotalX += rotateX;
+            currentTotalY += rotateY;
+
+            // 回転実行
+            cube.style.transform = `rotateX(${currentTotalX}deg) rotateY(${currentTotalY}deg)`;
 
             // 4. 結果表示
             setTimeout(() => {
@@ -190,6 +190,8 @@
 
         function resetApp() {
             remainingMembers = [...originalMembers];
+            currentTotalX = 0;
+            currentTotalY = 0;
             document.getElementById('result-text').innerText = "リセットしました";
             document.getElementById('cube').style.transform = "rotateX(0deg) rotateY(0deg)";
             updateStatus();
