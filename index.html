@@ -20,7 +20,7 @@
         .scene {
             width: 200px;
             height: 200px;
-            perspective: 1000px;
+            perspective: 800px;
             margin-bottom: 40px;
         }
 
@@ -29,8 +29,7 @@
             height: 100%;
             position: relative;
             transform-style: preserve-3d;
-            /* 2秒かけて回転。最後は少し弾むような動き */
-            transition: transform 2s cubic-bezier(0.15, 0.9, 0.3, 1.1);
+            transition: transform 2s cubic-bezier(0.15, 0.9, 0.3, 1);
         }
 
         .face {
@@ -48,10 +47,9 @@
             box-sizing: border-box;
             box-shadow: inset 0 0 30px rgba(0,0,0,0.2);
             border-radius: 10px;
-            backface-visibility: visible;
         }
 
-        /* 3D面配置 */
+        /* 3D面配置の定義 */
         .f-front  { transform: rotateY(0deg) translateZ(100px); }
         .f-back   { transform: rotateY(180deg) translateZ(100px); }
         .f-right  { transform: rotateY(90deg) translateZ(100px); }
@@ -73,7 +71,7 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
             font-weight: bold;
         }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:disabled { background: #555; cursor: not-allowed; opacity: 0.6; }
 
         .result-msg {
             margin-top: 20px;
@@ -89,10 +87,12 @@
 
     <h1 style="color: #ffd700; text-shadow: 2px 2px 4px #000; margin-bottom: 20px;">すべらない話</h1>
 
-    <div id="remaining-count" class="remaining status">残り: 8名</div>
+    <div class="status">
+        <div id="remaining-count" class="remaining">読み込み中...</div>
+    </div>
 
     <div class="scene">
-        <div class="cube" id="cube" style="transform: rotateX(0deg) rotateY(0deg);">
+        <div class="cube" id="cube">
             <div class="face f-front" id="face-0">?</div>
             <div class="face f-back" id="face-1">?</div>
             <div class="face f-right" id="face-2">?</div>
@@ -107,7 +107,7 @@
     <div class="controls" style="margin-top: 30px;">
         <button id="roll-btn" onclick="roll()">サイコロを振る</button>
         <div style="margin-top: 15px;">
-            <button onclick="resetApp()" style="font-size: 12px; padding: 5px 15px; background: #444;">リセット</button>
+            <button onclick="resetApp()" style="font-size: 12px; padding: 5px 15px; background: #444;">リストをリセット</button>
         </div>
     </div>
 
@@ -115,11 +115,8 @@
         const originalMembers = ["鹿内", "小椋", "中澤", "志民", "大石", "島尻", "益井", "甲平"];
         let remainingMembers = [...originalMembers];
         let isRolling = false;
-        
-        // 累積回転角度を保持
-        let currentTotalX = 0;
-        let currentTotalY = 0;
 
+        // 各面（0～5）に対応する回転角度
         const faceRotations = [
             { x: 0, y: 0 },       // Front
             { x: 0, y: 180 },     // Back
@@ -141,58 +138,53 @@
             btn.disabled = true;
             document.getElementById('result-text').innerText = "抽選中...";
 
-            // 1. 面の割り当て
+            // 1. 面に名前を割り当てる（今の残りメンバーからランダムに）
             let pool = [...remainingMembers];
-            let tempArray = [...remainingMembers];
-            while (tempArray.length < 6) tempArray.push("★");
+            while (pool.length < 6) pool.push("★"); // 6面埋めるための補充
             
-            // ランダムに並び替えて面に配置
-            const faceNames = tempArray.sort(() => Math.random() - 0.5);
-            let validIndices = [];
+            // 面に割り当てる配列（シャッフル）
+            const faceNames = pool.sort(() => Math.random() - 0.5).slice(0, 6);
             faceNames.forEach((name, i) => {
                 document.getElementById(`face-${i}`).innerText = name;
-                if (name !== "★") validIndices.push(i);
             });
 
-            // 2. 当選者を決める（★以外から）
-            const winnerIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
+            // 2. どの面を「当たり」にするか決める
+            const winnerIndex = Math.floor(Math.random() * 6);
             const winnerName = faceNames[winnerIndex];
 
-            // 3. 回転アニメーションの計算
+            // 3. その面が正面に来るように回転させる
             const cube = document.getElementById('cube');
-            const targetRotation = faceRotations[winnerIndex];
-
-            // 累積角度に、最低3回転(1080度) + ターゲットまでの角度を上乗せ
-            // 毎回違う方向に回るようにランダム要素を追加
-            const rotateX = 1080 + targetRotation.x;
-            const rotateY = 1080 + targetRotation.y;
+            const rotation = faceRotations[winnerIndex];
             
-            currentTotalX += rotateX;
-            currentTotalY += rotateY;
+            // 何回転かさせてから目的の角度へ（360 * 3 = 1080度プラス）
+            const finalX = rotation.x + (1080 * (Math.random() > 0.5 ? 1 : -1));
+            const finalY = rotation.y + (1080 * (Math.random() > 0.5 ? 1 : -1));
+            
+            cube.style.transform = `rotateX(${finalX}deg) rotateY(${finalY}deg)`;
 
-            // 回転実行
-            cube.style.transform = `rotateX(${currentTotalX}deg) rotateY(${currentTotalY}deg)`;
-
-            // 4. 結果表示
+            // 4. アニメーション終了後に結果を表示
             setTimeout(() => {
-                document.getElementById('result-text').innerText = `次は… 【${winnerName}】さん！`;
-                remainingMembers = remainingMembers.filter(m => m !== winnerName);
+                if (winnerName !== "★") {
+                    document.getElementById('result-text').innerText = `次は… 【${winnerName}】さん！`;
+                    remainingMembers = remainingMembers.filter(m => m !== winnerName);
+                } else {
+                    document.getElementById('result-text').innerText = "★ 好きな人を指名！";
+                }
                 
                 updateStatus();
                 isRolling = false;
                 btn.disabled = false;
 
                 if (remainingMembers.length === 0) {
-                    setTimeout(() => alert("全員終了しました！"), 500);
+                    setTimeout(() => alert("全員終了しました！リセットします。"), 500);
+                    setTimeout(resetApp, 600);
                 }
-            }, 2100);
+            }, 2100); // transition(2s)より少し長めに
         }
 
         function resetApp() {
             remainingMembers = [...originalMembers];
-            currentTotalX = 0;
-            currentTotalY = 0;
-            document.getElementById('result-text').innerText = "リセットしました";
+            document.getElementById('result-text').innerText = "";
             document.getElementById('cube').style.transform = "rotateX(0deg) rotateY(0deg)";
             updateStatus();
         }
